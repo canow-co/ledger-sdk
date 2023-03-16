@@ -150,7 +150,6 @@ export {
 	MsgUpdateDidDocResponseEncodeObject,
 	MsgDeactivateDidDocEncodeObject,
 	MsgDeactivateDidDocResponseEncodeObject,
-	contexts,
 	defaultDidExtensionKey,
 	protobufLiterals as protobufLiteralsDid,
 	typeUrlMsgCreateDidDoc,
@@ -180,6 +179,7 @@ export * from './registry.js'
 export * from './types.js'
 export {
 	TImportableEd25519Key,
+	contexts,
 	createKeyPairRaw, 
 	createKeyPairBase64,
 	createKeyPairHex,

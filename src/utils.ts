@@ -30,6 +30,7 @@ import { v4 } from 'uuid'
 import {
     VerificationMethod as ProtoVerificationMethod,
     Service as ProtoService,
+    VerificationRelationship,
 } from "@cheqd/ts-proto/cheqd/did/v2/index.js"
 
 export type TImportableEd25519Key = {
@@ -38,6 +39,13 @@ export type TImportableEd25519Key = {
     kid: string
     type: "Ed25519"
 }
+
+export const contexts = {
+	W3CDIDv1: "https://www.w3.org/ns/did/v1",
+	W3CSuiteEd255192020: "https://w3id.org/security/suites/ed25519-2020/v1",
+	W3CSuiteEd255192018: "https://w3id.org/security/suites/ed25519-2018/v1",
+	W3CSuiteJws2020: "https://w3id.org/security/suites/jws-2020/v1",
+} as const
 
 const MULTICODEC_ED25519_HEADER = new Uint8Array([0xed, 0x01]);
 
@@ -191,39 +199,7 @@ export function validateSpecCompliantPayload(didDocument: DIDDocument): SpecVali
     if (!Array.isArray(didDocument?.verificationMethod)) return { valid: false, error: 'verificationMethod must be an array' }
 
     // verificationMethod types must be supported
-    const protoVerificationMethod = didDocument.verificationMethod.map((vm) => {
-        switch (vm?.type) {
-            case VerificationMethods.Ed255192020:
-                if (!vm.publicKeyMultibase) throw new Error('publicKeyMultibase is required')
-
-                return ProtoVerificationMethod.fromPartial({
-                    id: vm.id,
-                    controller: vm.controller,
-                    verificationMethodType: VerificationMethods.Ed255192020,
-                    verificationMaterial: vm.publicKeyMultibase,
-                })
-            case VerificationMethods.JWK:
-                if (!vm.publicKeyJwk) throw new Error('publicKeyJwk is required')
-
-                return ProtoVerificationMethod.fromPartial({
-                    id: vm.id,
-                    controller: vm.controller,
-                    verificationMethodType: VerificationMethods.JWK,
-                    verificationMaterial: JSON.stringify(vm.publicKeyJwk),
-                })
-            case VerificationMethods.Ed255192018:
-                if (!vm.publicKeyBase58) throw new Error('publicKeyBase58 is required')
-
-                return ProtoVerificationMethod.fromPartial({
-                    id: vm.id,
-                    controller: vm.controller,
-                    verificationMethodType: VerificationMethods.Ed255192018,
-                    verificationMaterial: vm.publicKeyBase58,
-                })
-            default:
-                throw new Error(`Unsupported verificationMethod type: ${vm?.type}`)
-        }
-    })
+    const protoVerificationMethod = didDocument.verificationMethod.map(toProtoVerificationMethod)
 
     const protoService = didDocument?.service?.map((s) => {
         return ProtoService.fromPartial({
@@ -234,6 +210,99 @@ export function validateSpecCompliantPayload(didDocument: DIDDocument): SpecVali
     })
 
     return { valid: true, protobufVerificationMethod: protoVerificationMethod, protobufService: protoService }
+}
+
+export function toVerificationRelationships(values?: (string | VerificationMethod)[]): VerificationRelationship[] {
+    if (!values) return []
+
+    return values.map(value => {
+        if (typeof value === 'string') {
+            return { verificationMethodId: value, verificationMethod: undefined}
+        }
+        
+        return {
+            verificationMethodId: value.id,
+            verificationMethod: toProtoVerificationMethod(value)
+        }
+    })
+}
+
+export function fromVerificationRelationships(context: string[], values: VerificationRelationship[]): (string | VerificationMethod)[] {
+    return values.map(({verificationMethodId, verificationMethod}) => {
+        if (verificationMethod) {
+            return fromProtoVerificationMethod(context, verificationMethod)
+        }
+        
+        return verificationMethodId
+    })
+}
+
+export function toProtoVerificationMethod(vm: VerificationMethod): ProtoVerificationMethod {
+    switch (vm?.type) {
+        case VerificationMethods.Ed255192020:
+            if (!vm.publicKeyMultibase) throw new Error('publicKeyMultibase is required')
+
+            return ProtoVerificationMethod.fromPartial({
+                id: vm.id,
+                controller: vm.controller,
+                verificationMethodType: VerificationMethods.Ed255192020,
+                verificationMaterial: vm.publicKeyMultibase,
+            })
+        case VerificationMethods.JWK:
+            if (!vm.publicKeyJwk) throw new Error('publicKeyJwk is required')
+
+            return ProtoVerificationMethod.fromPartial({
+                id: vm.id,
+                controller: vm.controller,
+                verificationMethodType: VerificationMethods.JWK,
+                verificationMaterial: JSON.stringify(vm.publicKeyJwk),
+            })
+        case VerificationMethods.Ed255192018:
+            if (!vm.publicKeyBase58) throw new Error('publicKeyBase58 is required')
+
+            return ProtoVerificationMethod.fromPartial({
+                id: vm.id,
+                controller: vm.controller,
+                verificationMethodType: VerificationMethods.Ed255192018,
+                verificationMaterial: vm.publicKeyBase58,
+            })
+        default:
+            throw new Error(`Unsupported verificationMethod type: ${vm?.type}`)
+    }
+}
+
+export function fromProtoVerificationMethod(context: string[], vm: ProtoVerificationMethod): VerificationMethod {
+    switch (vm.verificationMethodType) {
+        case VerificationMethods.Ed255192020:
+            if (!context.includes(contexts.W3CSuiteEd255192020)) 
+                context = [...context, contexts.W3CSuiteEd255192020]
+            return {
+                id: vm.id,
+                type: vm.verificationMethodType,
+                controller: vm.controller,
+                publicKeyMultibase: vm.verificationMaterial,
+            }
+        case VerificationMethods.JWK:
+            if (!context.includes(contexts.W3CSuiteJws2020)) 
+                context = [...context, contexts.W3CSuiteJws2020]
+            return {
+                id: vm.id,
+                type: vm.verificationMethodType,
+                controller: vm.controller,
+                publicKeyJwk: JSON.parse(vm.verificationMaterial),
+            }
+        case VerificationMethods.Ed255192018:
+            if (!context.includes(contexts.W3CSuiteEd255192018))
+                context = [...context, contexts.W3CSuiteEd255192018]
+            return {
+                id: vm.id,
+                type: vm.verificationMethodType,
+                controller: vm.controller,
+                publicKeyBase58: vm.verificationMaterial,
+            }
+        default:
+            throw new Error('Unsupported verificationMethod type') // should never happen
+    }
 }
 
 function toMultibaseRaw(key: Uint8Array) {

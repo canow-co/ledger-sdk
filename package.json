@@ -29,7 +29,8 @@
     "build": "rm -rf build && npm run build:types && npm run build:esm && npm run build:cjs",
     "build:types": "tsc -p tsconfig.types.json",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs": "echo 'Experimental backwards compatibility! Use v2 major version or `@cjs` npm tag for deep CommonJS exports.' && tsc -p tsconfig.cjs.json"
+    "build:cjs": "echo 'Experimental backwards compatibility! Use v2 major version or `@cjs` npm tag for deep CommonJS exports.' && tsc -p tsconfig.cjs.json",
+    "postinstall": "patch-package"
   },
   "repository": "https://github.com/cheqd/sdk.git",
   "keywords": [
@@ -65,6 +66,7 @@
     "did-resolver": "^4.1.0",
     "file-type": "^18.2.1",
     "multiformats": "^11.0.2",
+    "patch-package": "^6.5.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
