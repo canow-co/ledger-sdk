@@ -24,6 +24,7 @@ import {
     createDidVerificationMethod,
     createKeyPairBase64,
     createVerificationKeys,
+    toVerificationRelationships,
     validateSpecCompliantPayload
 } from '../src/utils';
 import {
@@ -177,11 +178,11 @@ describe('CheqdSigningStargateClient', () => {
                 id: didPayload.id,
                 controller: <string[]>didPayload.controller,
                 verificationMethod: protobufVerificationMethod,
-                authentication: <string[]>didPayload.authentication,
-                assertionMethod: <string[]>didPayload.assertionMethod,
-                capabilityInvocation: <string[]>didPayload.capabilityInvocation,
-                capabilityDelegation: <string[]>didPayload.capabilityDelegation,
-                keyAgreement: <string[]>didPayload.keyAgreement,
+                authentication: toVerificationRelationships(didPayload.authentication),
+                assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
+                capabilityInvocation: toVerificationRelationships(didPayload.capabilityInvocation),
+                capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
+                keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
                 service: protobufService,
                 alsoKnownAs: <string[]>didPayload.alsoKnownAs,
                 versionId: versionId
