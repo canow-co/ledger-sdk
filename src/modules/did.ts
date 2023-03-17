@@ -49,14 +49,14 @@ import { PageRequest } from "@cheqd/ts-proto/cosmos/base/query/v1beta1/paginatio
 import { CheqdQuerier } from "../querier.js";
 import { DIDDocumentMetadata } from "did-resolver";
 
-export const defaultDidExtensionKey = "did" as const
+import {
+	contexts,
+	fromProtoVerificationMethod,
+	fromVerificationRelationships,
+    toVerificationRelationships
+} from "../../src/utils"
 
-export const contexts = {
-	W3CDIDv1: "https://www.w3.org/ns/did/v1",
-	W3CSuiteEd255192020: "https://w3id.org/security/suites/ed25519-2020/v1",
-	W3CSuiteEd255192018: "https://w3id.org/security/suites/ed25519-2018/v1",
-	W3CSuiteJws2020: "https://w3id.org/security/suites/jws-2020/v1",
-} as const
+export const defaultDidExtensionKey = "did" as const
 
 export const protobufLiterals = {
 	MsgCreateDidDoc: "MsgCreateDidDoc",
@@ -181,7 +181,7 @@ export class DIDModule extends AbstractCheqdSDKModule {
 		[typeUrlMsgDeactivateDidDocResponse, MsgDeactivateDidDocResponse],
     ]
 
-	static readonly baseMinimalDenom = 'ncheq' as const
+	static readonly baseMinimalDenom = 'zarx' as const
 
 	static readonly fees = {
 		DefaultCreateDidDocFee: { amount: '50000000000', denom: DIDModule.baseMinimalDenom } as const,
@@ -234,11 +234,11 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			id: didPayload.id,
 			controller: <string[]>didPayload.controller,
 			verificationMethod: protobufVerificationMethod,
-			authentication: <string[]>didPayload.authentication,
-			assertionMethod: <string[]>didPayload.assertionMethod,
-			capabilityInvocation: <string[]>didPayload.capabilityInvocation,
-			capabilityDelegation: <string[]>didPayload.capabilityDelegation,
-			keyAgreement: <string[]>didPayload.keyAgreement,
+			authentication: toVerificationRelationships(didPayload.authentication),
+			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
+			capabilityInvocation:toVerificationRelationships(didPayload.capabilityInvocation),
+			capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
+			keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
 			service: protobufService,
 			alsoKnownAs: <string[]>didPayload.alsoKnownAs,
 			versionId: versionId
@@ -297,11 +297,11 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			id: didPayload.id,
 			controller: <string[]>didPayload.controller,
 			verificationMethod: protobufVerificationMethod,
-			authentication: <string[]>didPayload.authentication,
-			assertionMethod: <string[]>didPayload.assertionMethod,
-			capabilityInvocation: <string[]>didPayload.capabilityInvocation,
-			capabilityDelegation: <string[]>didPayload.capabilityDelegation,
-			keyAgreement: <string[]>didPayload.keyAgreement,
+			authentication: toVerificationRelationships(didPayload.authentication),
+			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
+			capabilityInvocation: toVerificationRelationships(didPayload.capabilityInvocation),
+			capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
+			keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
 			service: protobufService,
 			alsoKnownAs: <string[]>didPayload.alsoKnownAs,
 			versionId: versionId
@@ -482,38 +482,8 @@ export class DIDModule extends AbstractCheqdSDKModule {
 	}
 
 	static async toSpecCompliantPayload(protobufDidDocument: DidDoc): Promise<DIDDocument> {
-		const verificationMethod = protobufDidDocument.verificationMethod.map((vm) => {
-			switch (vm.verificationMethodType) {
-				case VerificationMethods.Ed255192020:
-					if (!protobufDidDocument.context.includes(contexts.W3CSuiteEd255192020)) 
-						protobufDidDocument.context = [...protobufDidDocument.context, contexts.W3CSuiteEd255192020]
-					return {
-						id: vm.id,
-						type: vm.verificationMethodType,
-						controller: vm.controller,
-						publicKeyMultibase: vm.verificationMaterial,
-					}
-				case VerificationMethods.JWK:
-					if (!protobufDidDocument.context.includes(contexts.W3CSuiteJws2020)) 
-						protobufDidDocument.context = [...protobufDidDocument.context, contexts.W3CSuiteJws2020]
-					return {
-						id: vm.id,
-						type: vm.verificationMethodType,
-						controller: vm.controller,
-						publicKeyJwk: JSON.parse(vm.verificationMaterial),
-					}
-				case VerificationMethods.Ed255192018:
-					if (!protobufDidDocument.context.includes(contexts.W3CSuiteEd255192018))
-						protobufDidDocument.context = [...protobufDidDocument.context, contexts.W3CSuiteEd255192018]
-					return {
-						id: vm.id,
-						type: vm.verificationMethodType,
-						controller: vm.controller,
-						publicKeyBase58: vm.verificationMaterial,
-					}
-				default:
-					throw new Error('Unsupported verificationMethod type') // should never happen
-			}
+		const verificationMethod = protobufDidDocument.verificationMethod.map(vm => {
+			return fromProtoVerificationMethod(protobufDidDocument.context, vm)
 		})
 
 		const service = protobufDidDocument.service.map((s) => {
@@ -536,11 +506,11 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			id: protobufDidDocument.id,
 			controller: protobufDidDocument.controller,
 			verificationMethod: verificationMethod,
-			authentication: protobufDidDocument.authentication,
-			assertionMethod: protobufDidDocument.assertionMethod,
-			capabilityInvocation: protobufDidDocument.capabilityInvocation,
-			capabilityDelegation: protobufDidDocument.capabilityDelegation,
-			keyAgreement: protobufDidDocument.keyAgreement,
+			authentication: fromVerificationRelationships(context, protobufDidDocument.authentication),
+			assertionMethod: fromVerificationRelationships(context, protobufDidDocument.assertionMethod),
+			capabilityInvocation: fromVerificationRelationships(context, protobufDidDocument.capabilityInvocation),
+			capabilityDelegation: fromVerificationRelationships(context, protobufDidDocument.capabilityDelegation),
+			keyAgreement: fromVerificationRelationships(context, protobufDidDocument.keyAgreement),
 			service: service,
 			alsoKnownAs: protobufDidDocument.alsoKnownAs,
 		} as DIDDocument

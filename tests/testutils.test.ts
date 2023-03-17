@@ -2,7 +2,7 @@ import { GasPrice } from "@cosmjs/stargate"
 
 export const faucet = {
     prefix: 'cheqd',
-    minimalDenom: 'ncheq',
+    minimalDenom: 'zarx',
     mnemonic: 'sketch mountain erode window enact net enrich smoke claim kangaroo another visual write meat latin bacon pulp similar forum guilt father state erase bright',
     address: 'cheqd1rnr5jrt4exl0samwj0yegv99jeskl0hsxmcz96',
 }
