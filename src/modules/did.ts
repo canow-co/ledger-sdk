@@ -482,7 +482,9 @@ export class DIDModule extends AbstractCheqdSDKModule {
 	}
 
 	static async toSpecCompliantPayload(protobufDidDocument: DidDoc): Promise<DIDDocument> {
-		const verificationMethod = protobufDidDocument.verificationMethod.map(vm => fromProtoVerificationMethod(protobufDidDocument.context, vm))
+		const verificationMethod = protobufDidDocument.verificationMethod.map(vm => {
+			return fromProtoVerificationMethod(protobufDidDocument.context, vm)
+		})
 
 		const service = protobufDidDocument.service.map((s) => {
 			return {
