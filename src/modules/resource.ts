@@ -95,7 +95,7 @@ export class ResourceModule extends AbstractCheqdSDKModule {
 		[typeUrlMsgCreateResourceResponse, MsgCreateResourceResponse]
 	]
 
-	static readonly baseMinimalDenom = 'ncheq' as const
+	static readonly baseMinimalDenom = 'zarx' as const
 
 	static readonly fees = {
 		DefaultCreateResourceImageFee: { amount: '10000000000', denom: ResourceModule.baseMinimalDenom } as const,

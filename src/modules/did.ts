@@ -181,7 +181,7 @@ export class DIDModule extends AbstractCheqdSDKModule {
 		[typeUrlMsgDeactivateDidDocResponse, MsgDeactivateDidDocResponse],
     ]
 
-	static readonly baseMinimalDenom = 'ncheq' as const
+	static readonly baseMinimalDenom = 'zarx' as const
 
 	static readonly fees = {
 		DefaultCreateDidDocFee: { amount: '50000000000', denom: DIDModule.baseMinimalDenom } as const,

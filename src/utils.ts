@@ -122,7 +122,7 @@ export function createVerificationKeys(publicKey: string, algo: MethodSpecificId
     switch (algo) {
         case MethodSpecificIdAlgo.Base58:
             methodSpecificId = bases['base58btc'].encode(base64ToBytes(publicKey))
-            didUrl = `did:cheqd:${network}:${(bases['base58btc'].encode((sha256(base64ToBytes(publicKey))).slice(0,16))).slice(1)}`
+            didUrl = `did:canow:${network}:${(bases['base58btc'].encode((sha256(base64ToBytes(publicKey))).slice(0,16))).slice(1)}`
             return {
                 methodSpecificId,
                 didUrl,
@@ -131,7 +131,7 @@ export function createVerificationKeys(publicKey: string, algo: MethodSpecificId
             }
         case MethodSpecificIdAlgo.Uuid:
             methodSpecificId = bases['base58btc'].encode(base64ToBytes(publicKey))
-            didUrl = `did:cheqd:${network}:${v4()}`
+            didUrl = `did:canow:${network}:${v4()}`
             return {
                 methodSpecificId,
                 didUrl,
@@ -184,7 +184,7 @@ export function createDidPayload(verificationMethods: VerificationMethod[], veri
             id: did,
             controller: verificationKeys.map(key => key.didUrl),
             verificationMethod: verificationMethods,
-            authentication: verificationKeys.map(key => key.keyId),
+            authentication: verificationKeys.map(key => key.keyId)
     } as DIDDocument
 }
 
@@ -221,7 +221,7 @@ export function toVerificationRelationships(values?: (string | VerificationMetho
         }
         
         return {
-            verificationMethodId: value.id,
+            verificationMethodId: "",
             verificationMethod: toProtoVerificationMethod(value)
         }
     })
