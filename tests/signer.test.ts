@@ -2,7 +2,7 @@ import {
     MsgCreateDidDoc,
     MsgCreateDidDocPayload,
     VerificationMethod
-} from "@cheqd/ts-proto/cheqd/did/v2"
+} from "@canow-co/ts-proto/cheqd/did/v2"
 import {
     DirectSecp256k1HdWallet,
     Registry

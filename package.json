@@ -1,5 +1,5 @@
 {
-  "name": "@cheqd/sdk",
+  "name": "@canow-co/ledger-sdk",
   "version": "3.2.0",
   "description": "A TypeScript SDK built with CosmJS to interact with cheqd network ledger",
   "license": "Apache-2.0",
@@ -29,10 +29,9 @@
     "build": "rm -rf build && npm run build:types && npm run build:esm && npm run build:cjs",
     "build:types": "tsc -p tsconfig.types.json",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs": "echo 'Experimental backwards compatibility! Use v2 major version or `@cjs` npm tag for deep CommonJS exports.' && tsc -p tsconfig.cjs.json",
-    "postinstall": "patch-package"
+    "build:cjs": "echo 'Experimental backwards compatibility! Use v2 major version or `@cjs` npm tag for deep CommonJS exports.' && tsc -p tsconfig.cjs.json"
   },
-  "repository": "https://github.com/cheqd/sdk.git",
+  "repository": "https://github.com/canow-co/ledger-sdk.git",
   "keywords": [
     "cheqd",
     "sdk",
@@ -42,9 +41,9 @@
     "resources"
   ],
   "bugs": {
-    "url": "https://github.com/cheqd/sdk/issues"
+    "url": "https://github.com/canow-co/ledger-sdk/issues"
   },
-  "homepage": "https://github.com/cheqd/sdk#readme",
+  "homepage": "https://github.com/canow-co/ledger-sdk#readme",
   "files": [
     "build/**/*",
     "LICENSE",
@@ -52,7 +51,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@cheqd/ts-proto": "^3.1.3",
+    "@canow-co/ts-proto": "^3.1.1",
     "@cosmjs/amino": "^0.29.5",
     "@cosmjs/encoding": "^0.29.5",
     "@cosmjs/math": "^0.29.5",
@@ -66,7 +65,6 @@
     "did-resolver": "^4.1.0",
     "file-type": "^18.2.1",
     "multiformats": "^11.0.2",
-    "patch-package": "^6.5.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
@@ -88,7 +86,7 @@
     "uint8arrays": "^4.0.3"
   },
   "publishConfig": {
-    "registry": "https://registry.npmjs.org/",
+    "@canow-co:registry": "https://npm.pkg.github.com",
     "access": "public"
   },
   "engines": {

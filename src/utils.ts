@@ -31,7 +31,7 @@ import {
     VerificationMethod as ProtoVerificationMethod,
     Service as ProtoService,
     VerificationRelationship,
-} from "@cheqd/ts-proto/cheqd/did/v2/index.js"
+} from "@canow-co/ts-proto/cheqd/did/v2/index.js"
 
 export type TImportableEd25519Key = {
     publicKeyHex: string
