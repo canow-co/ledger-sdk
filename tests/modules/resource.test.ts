@@ -35,7 +35,7 @@ import {
     AlternativeUri,
     Metadata,
     MsgCreateResourcePayload
-} from '@cheqd/ts-proto/cheqd/resource/v2';
+} from '@canow-co/ts-proto/cheqd/resource/v2';
 import { v4 } from "uuid"
 import { CheqdQuerier } from "../../src/querier"
 import {

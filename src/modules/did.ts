@@ -38,14 +38,14 @@ import {
 	DidDocWithMetadata,
 	DidDoc,
 	Metadata
-} from "@cheqd/ts-proto/cheqd/did/v2/index.js"
+} from "@canow-co/ts-proto/cheqd/did/v2/index.js"
 import {
 	EncodeObject,
 	GeneratedType
 } from "@cosmjs/proto-signing"
 import { v4 } from "uuid"
 import { assert } from "@cosmjs/utils";
-import { PageRequest } from "@cheqd/ts-proto/cosmos/base/query/v1beta1/pagination.js";
+import { PageRequest } from "@canow-co/ts-proto/cosmos/base/query/v1beta1/pagination.js";
 import { CheqdQuerier } from "../querier.js";
 import { DIDDocumentMetadata } from "did-resolver";
 
