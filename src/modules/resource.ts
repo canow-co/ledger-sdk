@@ -22,17 +22,17 @@ import {
 	QueryCollectionResourcesResponse,
 	ResourceWithMetadata,
 	protobufPackage
-} from "@canow-co/ts-proto/cheqd/resource/v2/index.js"
+} from "@canow-co/canow-proto/dist/cheqd/resource/v2"
 import {
 	DeliverTxResponse,
 	QueryClient,
 	createPagination,
 	createProtobufRpcClient
 } from "@cosmjs/stargate"
-import { SignInfo } from "@canow-co/ts-proto/cheqd/did/v2/index.js";
+import { SignInfo } from "@canow-co/canow-proto/dist/cheqd/did/v2";
 import { fileTypeFromBuffer } from "file-type";
 import { assert } from '@cosmjs/utils';
-import { PageRequest } from '@canow-co/ts-proto/cosmos/base/query/v1beta1/pagination.js';
+import { PageRequest } from '@canow-co/canow-proto/dist/cosmos/base/query/v1beta1/pagination.js';
 import { CheqdQuerier } from '../querier.js';
 
 export const defaultResourceExtensionKey = 'resource' as const
