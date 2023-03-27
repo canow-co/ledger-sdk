@@ -1,6 +1,6 @@
 {
   "name": "@canow-co/ledger-sdk",
-  "version": "3.2.0",
+  "version": "3.2.0-canow.6",
   "description": "A TypeScript SDK built with CosmJS to interact with cheqd network ledger",
   "license": "Apache-2.0",
   "author": "Cheqd Foundation Limited (https://github.com/cheqd)",
@@ -51,7 +51,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@canow-co/ts-proto": "^3.1.1",
+    "@canow-co/canow-proto": "^2.0.1-canow.2",
     "@cosmjs/amino": "^0.29.5",
     "@cosmjs/encoding": "^0.29.5",
     "@cosmjs/math": "^0.29.5",

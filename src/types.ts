@@ -1,7 +1,7 @@
 import {
     Service as ProtobufService, 
     VerificationMethod as ProtobufVerificationMethod
-} from "@canow-co/ts-proto/cheqd/did/v2/index.js"
+} from "@canow-co/canow-proto/dist/cheqd/did/v2"
 import { CheqdSDK } from "./index.js"
 import { Coin } from "@cosmjs/proto-signing"
 import { Signer } from "did-jwt"

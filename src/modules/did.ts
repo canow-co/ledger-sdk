@@ -38,14 +38,14 @@ import {
 	DidDocWithMetadata,
 	DidDoc,
 	Metadata
-} from "@canow-co/ts-proto/cheqd/did/v2/index.js"
+} from "@canow-co/canow-proto/dist/cheqd/did/v2"
 import {
 	EncodeObject,
 	GeneratedType
 } from "@cosmjs/proto-signing"
 import { v4 } from "uuid"
 import { assert } from "@cosmjs/utils";
-import { PageRequest } from "@canow-co/ts-proto/cosmos/base/query/v1beta1/pagination.js";
+import { PageRequest } from "@canow-co/canow-proto/dist/cosmos/base/query/v1beta1/pagination.js";
 import { CheqdQuerier } from "../querier.js";
 import { DIDDocumentMetadata } from "did-resolver";
 
@@ -54,7 +54,7 @@ import {
 	fromProtoVerificationMethod,
 	fromVerificationRelationships,
     toVerificationRelationships
-} from "../../src/utils"
+} from "../utils"
 
 export const defaultDidExtensionKey = "did" as const
 
@@ -222,27 +222,8 @@ export class DIDModule extends AbstractCheqdSDKModule {
 		if (!versionId || versionId === '') {
 			versionId = v4()
 		}
-
-		const { valid, error, protobufVerificationMethod, protobufService } = await DIDModule.validateSpecCompliantPayload(didPayload)
-
-		if (!valid) {
-			throw new Error(`DID payload is not spec compliant: ${error}`)
-		}
-
-		const payload = MsgCreateDidDocPayload.fromPartial({
-			context: <string[]>didPayload?.['@context'],
-			id: didPayload.id,
-			controller: <string[]>didPayload.controller,
-			verificationMethod: protobufVerificationMethod,
-			authentication: toVerificationRelationships(didPayload.authentication),
-			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
-			capabilityInvocation:toVerificationRelationships(didPayload.capabilityInvocation),
-			capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
-			keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
-			service: protobufService,
-			alsoKnownAs: <string[]>didPayload.alsoKnownAs,
-			versionId: versionId
-		})
+		
+		const payload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
 
 		let signatures: SignInfo[]
 		if(ISignInputs.isSignInput(signInputs)) {
@@ -286,26 +267,8 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			versionId = v4()
 		}
 
-		const { valid, error, protobufVerificationMethod, protobufService } = await DIDModule.validateSpecCompliantPayload(didPayload)
+		const payload = MsgUpdateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
 
-		if (!valid) {
-			throw new Error(`DID payload is not spec compliant: ${error}`)
-		}
-
-		const payload = MsgUpdateDidDocPayload.fromPartial({
-			context: <string[]>didPayload?.['@context'],
-			id: didPayload.id,
-			controller: <string[]>didPayload.controller,
-			verificationMethod: protobufVerificationMethod,
-			authentication: toVerificationRelationships(didPayload.authentication),
-			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
-			capabilityInvocation: toVerificationRelationships(didPayload.capabilityInvocation),
-			capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
-			keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
-			service: protobufService,
-			alsoKnownAs: <string[]>didPayload.alsoKnownAs,
-			versionId: versionId
-		})
 		let signatures: SignInfo[]
 		if(ISignInputs.isSignInput(signInputs)) {
 			signatures = await this._signer.signupdateDidDocTx(signInputs, payload)
@@ -567,5 +530,28 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			payer: feePayer,
 			granter: granter
 		} as DidStdFee
+	}
+
+	static async toProtoDidDocument(didPayload: DIDDocument, versionId: string) {
+		const { valid, error, protobufVerificationMethod, protobufService } = await DIDModule.validateSpecCompliantPayload(didPayload)
+
+		if (!valid) {
+			throw new Error(`DID payload is not spec compliant: ${error}`)
+		}
+
+		return {
+			context: <string[]>didPayload?.['@context'],
+			id: didPayload.id,
+			controller: <string[]>didPayload.controller,
+			verificationMethod: protobufVerificationMethod,
+			authentication: toVerificationRelationships(didPayload.authentication),
+			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
+			capabilityInvocation: toVerificationRelationships(didPayload.capabilityInvocation),
+			capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
+			keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
+			service: protobufService,
+			alsoKnownAs: <string[]>didPayload.alsoKnownAs,
+			versionId: versionId
+		}
 	}
 }

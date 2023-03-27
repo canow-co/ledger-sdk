@@ -22,7 +22,7 @@ import {
 	MsgUpdateDidDocPayload,
 	MsgDeactivateDidDocPayload,
 	VerificationMethod 
-} from '@canow-co/ts-proto/cheqd/did/v2/index.js';
+} from '@canow-co/canow-proto/dist/cheqd/did/v2';
 import {
 	DidStdFee,
 	ISignInputs,
