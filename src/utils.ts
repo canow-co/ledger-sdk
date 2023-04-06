@@ -13,7 +13,7 @@ import {
     DIDDocument,
     SpecValidationResult,
     JsonWebKey,
-} from "./types.js"
+} from "./types"
 import {
     fromString,
     toString
@@ -31,7 +31,7 @@ import {
     VerificationMethod as ProtoVerificationMethod,
     Service as ProtoService,
     VerificationRelationship,
-} from "@canow-co/canow-proto/dist/cheqd/did/v2/index.js"
+} from "@canow-co/canow-proto/dist/cheqd/did/v2/index"
 
 export type TImportableEd25519Key = {
     publicKeyHex: string
@@ -219,7 +219,7 @@ export function toVerificationRelationships(values?: (string | VerificationMetho
         if (typeof value === 'string') {
             return { verificationMethodId: value, verificationMethod: undefined}
         }
-        
+
         return {
             verificationMethodId: "",
             verificationMethod: toProtoVerificationMethod(value)
@@ -232,7 +232,7 @@ export function fromVerificationRelationships(context: string[], values: Verific
         if (verificationMethod) {
             return fromProtoVerificationMethod(context, verificationMethod)
         }
-        
+
         return verificationMethodId
     })
 }
@@ -274,7 +274,7 @@ export function toProtoVerificationMethod(vm: VerificationMethod): ProtoVerifica
 export function fromProtoVerificationMethod(context: string[], vm: ProtoVerificationMethod): VerificationMethod {
     switch (vm.verificationMethodType) {
         case VerificationMethods.Ed255192020:
-            if (!context.includes(contexts.W3CSuiteEd255192020)) 
+            if (!context.includes(contexts.W3CSuiteEd255192020))
                 context = [...context, contexts.W3CSuiteEd255192020]
             return {
                 id: vm.id,
@@ -283,7 +283,7 @@ export function fromProtoVerificationMethod(context: string[], vm: ProtoVerifica
                 publicKeyMultibase: vm.verificationMaterial,
             }
         case VerificationMethods.JWK:
-            if (!context.includes(contexts.W3CSuiteJws2020)) 
+            if (!context.includes(contexts.W3CSuiteJws2020))
                 context = [...context, contexts.W3CSuiteJws2020]
             return {
                 id: vm.id,

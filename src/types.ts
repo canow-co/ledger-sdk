@@ -2,13 +2,13 @@ import {
     Service as ProtobufService, 
     VerificationMethod as ProtobufVerificationMethod
 } from "@canow-co/canow-proto/dist/cheqd/did/v2"
-import { CheqdSDK } from "./index.js"
+import { CheqdSDK } from "./index"
 import { Coin } from "@cosmjs/proto-signing"
 import { Signer } from "did-jwt"
 import { QueryClient } from "@cosmjs/stargate"
 import { DIDResolutionResult } from "did-resolver"
-import { DidExtension } from "./modules/did.js"
-import { ResourceExtension } from './modules/resource.js';
+import { DidExtension } from "./modules/did"
+import { ResourceExtension } from './modules/resource';
 export {
     DIDDocument,
     VerificationMethod,
