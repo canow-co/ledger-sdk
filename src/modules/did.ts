@@ -7,8 +7,8 @@ import {
 import {
 	AbstractCheqdSDKModule,
 	MinimalImportableCheqdSDKModule
-} from './_.js';
-import { CheqdSigningStargateClient } from "../signer.js"
+} from './_';
+import { CheqdSigningStargateClient } from "../signer"
 import {
 	DIDDocument,
 	DidStdFee,
@@ -18,7 +18,7 @@ import {
 	SpecValidationResult,
 	VerificationMethods,
 	DIDDocumentWithMetadata
-} from '../types.js';
+} from '../types';
 import { 
 	MsgCreateDidDoc,
 	MsgCreateDidDocPayload,
@@ -45,8 +45,8 @@ import {
 } from "@cosmjs/proto-signing"
 import { v4 } from "uuid"
 import { assert } from "@cosmjs/utils";
-import { PageRequest } from "@canow-co/canow-proto/dist/cosmos/base/query/v1beta1/pagination.js";
-import { CheqdQuerier } from "../querier.js";
+import { PageRequest } from "@canow-co/canow-proto/dist/cosmos/base/query/v1beta1/pagination";
+import { CheqdQuerier } from "../querier";
 import { DIDDocumentMetadata } from "did-resolver";
 
 import {
@@ -222,7 +222,7 @@ export class DIDModule extends AbstractCheqdSDKModule {
 		if (!versionId || versionId === '') {
 			versionId = v4()
 		}
-		
+
 		const payload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
 
 		let signatures: SignInfo[]
