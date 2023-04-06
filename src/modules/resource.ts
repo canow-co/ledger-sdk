@@ -30,7 +30,6 @@ import {
 	createProtobufRpcClient
 } from "@cosmjs/stargate"
 import { SignInfo } from "@canow-co/canow-proto/dist/cheqd/did/v2";
-import { fileTypeFromBuffer } from "file-type";
 import { assert } from '@cosmjs/utils';
 import { PageRequest } from '@canow-co/canow-proto/dist/cosmos/base/query/v1beta1/pagination';
 import { CheqdQuerier } from '../querier.js';
