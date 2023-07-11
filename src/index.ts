@@ -94,15 +94,21 @@ export class CheqdSDK {
 	}
 
     private loadRegistry(): Registry {
-        const registryTypes = this.options.modules.map((module: any) => instantiateCheqdSDKModuleRegistryTypes(module)).reduce((acc, types) => {
-            return [...acc, ...types]
-        })
+        const registryTypes = this.options.modules.map((module: any) => instantiateCheqdSDKModuleRegistryTypes(module)).reduce(
+			(acc, types) => {
+				return [...acc, ...types]
+			},
+			[])
         return createDefaultCheqdRegistry(registryTypes)
     }
 
 	private async loadQuerierExtensions(): Promise<CheqdQuerier & DidExtension & ResourceExtension> {
 		const querierExtensions = this.options.modules.map((module: any) => instantiateCheqdSDKModuleQuerierExtensionSetup(module))
-		const querier = await CheqdQuerier.connectWithExtensions(this.options.rpcUrl, ...querierExtensions)
+
+		const querier = querierExtensions.length === 0
+			? await CheqdQuerier.connect(this.options.rpcUrl)
+			: await CheqdQuerier.connectWithExtensions(this.options.rpcUrl, ...querierExtensions)
+
 		return <CheqdQuerier & DidExtension & ResourceExtension>querier
 	}
 
