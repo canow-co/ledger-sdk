@@ -7,7 +7,12 @@ import {
     DirectSecp256k1HdWallet,
     Registry
 } from "@cosmjs/proto-signing"
-import { BroadcastTxError, DeliverTxResponse, SigningStargateClient } from "@cosmjs/stargate"
+import {
+    BroadcastTxError,
+    DeliverTxResponse,
+    SigningStargateClient,
+    TimeoutError
+} from "@cosmjs/stargate"
 import { EdDSASigner } from "did-jwt"
 import { typeUrlMsgCreateDidDoc } from '../src/modules/did'
 import { CheqdSigningStargateClient } from "../src/signer"
@@ -331,10 +336,10 @@ describe('CheqdSigningStargateClient', () => {
 
         it('should raise non-sequence error from super.broadcastTx after 1 wrong sequence result', async () => {
             const wrongSequenceResult = createFailureResult({ code: 32 })
-            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const timeoutError = new TimeoutError('Timeout has occurred.', '0f0f')
             const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
             superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
-            superBroadcastTxSpy.mockRejectedValue(insufficientFundsError)
+            superBroadcastTxSpy.mockRejectedValue(timeoutError)
 
             const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
             const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
@@ -345,7 +350,7 @@ describe('CheqdSigningStargateClient', () => {
                 undefined,
                 5,
                 10
-            )).rejects.toThrow(insufficientFundsError)
+            )).rejects.toThrow(timeoutError)
 
             expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
         })
@@ -396,10 +401,10 @@ describe('CheqdSigningStargateClient', () => {
 
         it('should raise non-sequence error from super.broadcastTx after 1 wrong sequence error', async () => {
             const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
-            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const timeoutError = new TimeoutError('Timeout has occurred.', '0f0f')
             const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
             superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
-            superBroadcastTxSpy.mockRejectedValue(insufficientFundsError)
+            superBroadcastTxSpy.mockRejectedValue(timeoutError)
 
             const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
             const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
@@ -410,7 +415,7 @@ describe('CheqdSigningStargateClient', () => {
                 undefined,
                 5,
                 10
-            )).rejects.toThrow(insufficientFundsError)
+            )).rejects.toThrow(timeoutError)
 
             expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
         })
