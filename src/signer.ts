@@ -13,7 +13,9 @@ import {
 	SigningStargateClient,
 	SigningStargateClientOptions,
 	calculateFee,
-	SignerData } from "@cosmjs/stargate"
+	SignerData, 
+	BroadcastTxError
+} from "@cosmjs/stargate"
 import { Tendermint34Client } from "@cosmjs/tendermint-rpc"
 import { createDefaultCheqdRegistry } from "./registry"
 import { 
@@ -39,7 +41,8 @@ import {
 } from 'did-jwt';
 import {
 	assert,
-	assertDefined
+	assertDefined,
+	sleep
 } from '@cosmjs/utils'
 import { encodeSecp256k1Pubkey } from '@cosmjs/amino'
 import { Int53 } from '@cosmjs/math'
@@ -91,12 +94,22 @@ export function makeDidAuthInfoBytes(
 	return AuthInfo.encode(AuthInfo.fromPartial(authInfo)).finish()
 }
 
+const WRONG_SEQUENCE_ERROR_CODE = 32
+
+export interface CheqdSigningStargateClientOptions extends SigningStargateClientOptions {
+	readonly broadcastMaxRetriesCount?: number
+	readonly broadcastRetryIntervalMs?: number
+}
+
 export class CheqdSigningStargateClient extends SigningStargateClient {
+	public readonly broadcastMaxRetriesCount: number | undefined;
+	public readonly broadcastRetryIntervalMs: number | undefined;
+
 	private didSigners: TSignerAlgo = {}
 	private readonly _gasPrice: GasPrice | undefined
 	private readonly _signer: OfflineSigner
 
-	public static async connectWithSigner(endpoint: string | HttpEndpoint, signer: OfflineSigner, options?: SigningStargateClientOptions | undefined): Promise<CheqdSigningStargateClient> {
+	public static async connectWithSigner(endpoint: string | HttpEndpoint, signer: OfflineSigner, options?: CheqdSigningStargateClientOptions | undefined): Promise<CheqdSigningStargateClient> {
 		const tmClient = await Tendermint34Client.connect(endpoint)
 		return new CheqdSigningStargateClient(tmClient, signer, {
 			registry: options?.registry ? options.registry : createDefaultCheqdRegistry(),
@@ -107,10 +120,12 @@ export class CheqdSigningStargateClient extends SigningStargateClient {
 	constructor(
 		tmClient: Tendermint34Client | undefined,
 		signer: OfflineSigner,
-		options: SigningStargateClientOptions = {}
+		options: CheqdSigningStargateClientOptions = {}
 	) {
 		super(tmClient, signer, options)
 		this._signer = signer
+		this.broadcastMaxRetriesCount = options.broadcastMaxRetriesCount;
+		this.broadcastRetryIntervalMs = options.broadcastRetryIntervalMs;
 		if (options.gasPrice) this._gasPrice = options.gasPrice
 	}
 
@@ -134,7 +149,13 @@ export class CheqdSigningStargateClient extends SigningStargateClient {
 		}
 		const txRaw = await this.sign(signerAddress, messages, usedFee, memo)
 		const txBytes = TxRaw.encode(txRaw).finish()
-		return this.broadcastTx(txBytes, this.broadcastTimeoutMs, this.broadcastPollIntervalMs)
+		return this.broadcastTx(
+			txBytes,
+			this.broadcastTimeoutMs,
+			this.broadcastPollIntervalMs,
+			this.broadcastMaxRetriesCount,
+			this.broadcastRetryIntervalMs
+		)
 	}
 
 	public async sign(
@@ -158,6 +179,39 @@ export class CheqdSigningStargateClient extends SigningStargateClient {
 		}
 
 		return this._signDirect(signerAddress, messages, fee, memo, signerData)
+	}
+
+	public async broadcastTx(
+		tx: Uint8Array,
+		attemptTimeoutMs?: number,
+		pollIntervalMs?: number,
+		maxRetriesCount: number = 3,
+		retryIntervalMs: number = 3000
+	): Promise<DeliverTxResponse> {
+        return new Promise((resolve, reject) => {
+            super.broadcastTx(tx, attemptTimeoutMs, pollIntervalMs).then(
+                (response: DeliverTxResponse) => {
+                    if (response.code === WRONG_SEQUENCE_ERROR_CODE && maxRetriesCount > 0) {
+                        resolve(
+                            sleep(retryIntervalMs)
+                                .then(() => this.broadcastTx(tx, attemptTimeoutMs, pollIntervalMs, maxRetriesCount - 1, retryIntervalMs))
+                        )
+                    } else {
+                        resolve(response)
+                    }
+                },
+                (error: any) => {
+                    if (error instanceof BroadcastTxError && error.code === WRONG_SEQUENCE_ERROR_CODE && maxRetriesCount > 0) {
+                        resolve(
+                            sleep(retryIntervalMs)
+                                .then(() => this.broadcastTx(tx, attemptTimeoutMs, pollIntervalMs, maxRetriesCount - 1, retryIntervalMs))
+                        )
+                    } else {
+                        reject(error)
+                    }
+                }
+            )
+        })
 	}
 
 	private async _signDirect(

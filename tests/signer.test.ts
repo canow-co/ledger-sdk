@@ -7,6 +7,7 @@ import {
     DirectSecp256k1HdWallet,
     Registry
 } from "@cosmjs/proto-signing"
+import { BroadcastTxError, DeliverTxResponse, SigningStargateClient } from "@cosmjs/stargate"
 import { EdDSASigner } from "did-jwt"
 import { typeUrlMsgCreateDidDoc } from '../src/modules/did'
 import { CheqdSigningStargateClient } from "../src/signer"
@@ -34,22 +35,22 @@ import {
 import { verify } from "@stablelib/ed25519"
 import { v4 } from "uuid"
 
-const nonExistingDid = "did:cHeQd:fantasticnet:123"
-const nonExistingKeyId = 'did:cHeQd:fantasticnet:123#key-678'
+const nonExistingDid = "did:cAnOw:fantasticnet:123"
+const nonExistingKeyId = 'did:cAnOw:fantasticnet:123#key-678'
 const nonExistingPublicKeyMultibase = '1234567890'
 const nonExistingVerificationMethod = 'ExtraTerrestrialVerificationKey2045'
 const nonExistingVerificationDidDocument = {
     "authentication": [
-        "did:cheqd:testnet:z6Jn6NmYkaCepQe2#key-1"
+        "did:canow:testnet:z6Jn6NmYkaCepQe2#key-1"
     ],
     "controller": [
-        "did:cheqd:testnet:z6Jn6NmYkaCepQe2"
+        "did:canow:testnet:z6Jn6NmYkaCepQe2"
     ],
-    "id": "did:cheqd:testnet:z6Jn6NmYkaCepQe2",
+    "id": "did:canow:testnet:z6Jn6NmYkaCepQe2",
     "verificationMethod": [
         {
-            "controller": "did:cheqd:testnet:z6Jn6NmYkaCepQe2",
-            "id": "did:cheqd:testnet:z6Jn6NmYkaCepQe2#key-1",
+            "controller": "did:canow:testnet:z6Jn6NmYkaCepQe2",
+            "id": "did:canow:testnet:z6Jn6NmYkaCepQe2#key-1",
             "publicKeyMultibase": "z6Jn6NmYkaCepQe29vgCZQhFfRkN3YpEPiu14F8HbbmqW",
             "type": nonExistingVerificationMethod
         }
@@ -198,6 +199,409 @@ describe('CheqdSigningStargateClient', () => {
             )
 
             expect(verified).toBe(true)
+        })
+    })
+
+    describe('broadcastTx', () => {
+        function createSuccessResult(): DeliverTxResponse {
+            return {
+                code: 0,
+                height: 1,
+                transactionHash: '0f0f',
+                events: [],
+                gasUsed: 0,
+                gasWanted: 0
+            }
+        }
+
+        function createFailureResult({ code }: { code: number }): DeliverTxResponse {
+            if (code === 0) {
+                throw Error('Failure result must have non-zero code')
+            }
+            return {
+                code,
+                height: 0,
+                transactionHash: '',
+                events: [],
+                gasUsed: 0,
+                gasWanted: 0
+            }
+        }
+
+        afterEach(() => {
+            jest.restoreAllMocks()
+        })
+
+        it('should return successful result from super.broadcastTx right away', async () => {
+            const successResult = createSuccessResult()
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx').mockResolvedValue(successResult)
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(successResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(1)
+        })
+
+        it('should return non-sequence error result from super.broadcastTx right away', async () => {
+            const insufficientFundsResult = createFailureResult({ code: 5 })
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx').mockResolvedValue(insufficientFundsResult)
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(insufficientFundsResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(1)
+        })
+
+        it('should raise non-sequence error from super.broadcastTx right away', async () => {
+            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx').mockRejectedValue(insufficientFundsError)
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            await expect(signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )).rejects.toThrow(insufficientFundsError)
+
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(1)
+        })
+
+        it('should return successful result from super.broadcastTx after 1 wrong sequence result', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const successResult = createSuccessResult()
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValue(successResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(successResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
+        })
+
+        it('should return non-sequence error result from super.broadcastTx after 1 wrong sequence result', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const insufficientFundsResult = createFailureResult({ code: 5 })
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValue(insufficientFundsResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(insufficientFundsResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
+        })
+
+        it('should raise non-sequence error from super.broadcastTx after 1 wrong sequence result', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockRejectedValue(insufficientFundsError)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            await expect(signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )).rejects.toThrow(insufficientFundsError)
+
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
+        })
+
+        it('should return successful result from super.broadcastTx after 1 wrong sequence error', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const successResult = createSuccessResult()
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockResolvedValue(successResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(successResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
+        })
+
+        it('should return non-sequence error result from super.broadcastTx after 1 wrong sequence error', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const insufficientFundsResult = createFailureResult({ code: 5 })
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockResolvedValue(insufficientFundsResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(insufficientFundsResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
+        })
+
+        it('should raise non-sequence error from super.broadcastTx after 1 wrong sequence error', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValue(insufficientFundsError)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            await expect(signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )).rejects.toThrow(insufficientFundsError)
+
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(2)
+        })
+
+        it('should return successful result from super.broadcastTx after maxRetriesCount wrong sequence result', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const successResult = createSuccessResult()
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValue(successResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(successResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should return non-sequence error result from super.broadcastTx after maxRetriesCount wrong sequence result', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const insufficientFundsResult = createFailureResult({ code: 5 })
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValue(insufficientFundsResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(insufficientFundsResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should raise non-sequence error from super.broadcastTx after maxRetriesCount wrong sequence result', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockResolvedValueOnce(wrongSequenceResult)
+            superBroadcastTxSpy.mockRejectedValue(insufficientFundsError)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            await expect(signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )).rejects.toThrow(insufficientFundsError)
+
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should return successful result from super.broadcastTx after maxRetriesCount wrong sequence error', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const successResult = createSuccessResult()
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockResolvedValue(successResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(successResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should return non-sequence error result from super.broadcastTx after maxRetriesCount wrong sequence error', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const insufficientFundsResult = createFailureResult({ code: 5 })
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockResolvedValue(insufficientFundsResult)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(insufficientFundsResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should raise non-sequence error from super.broadcastTx after maxRetriesCount wrong sequence error', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const insufficientFundsError = new BroadcastTxError(5, 'sdk', 'Error message.')
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx')
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValueOnce(wrongSequenceError)
+            superBroadcastTxSpy.mockRejectedValue(insufficientFundsError)
+
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            await expect(signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )).rejects.toThrow(insufficientFundsError)
+
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should return wrong sequence result from super.broadcastTx on maxRetriesCount+1 unsuccessful attempt', async () => {
+            const wrongSequenceResult = createFailureResult({ code: 32 })
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx').mockResolvedValue(wrongSequenceResult)
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            const result = await signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )
+
+            expect(result).toEqual(wrongSequenceResult)
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
+        })
+
+        it('should raise wrong sequence error from super.broadcastTx on maxRetriesCount+1 unsuccessful attempt', async () => {
+            const wrongSequenceError = new BroadcastTxError(32, 'sdk', 'Error message.')
+            const superBroadcastTxSpy = jest.spyOn(SigningStargateClient.prototype, 'broadcastTx').mockRejectedValue(wrongSequenceError)
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet)
+
+            await expect(signer.broadcastTx(
+                new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]),
+                undefined,
+                undefined,
+                5,
+                10
+            )).rejects.toThrow(wrongSequenceError)
+
+            expect(superBroadcastTxSpy).toHaveBeenCalledTimes(6)
         })
     })
 })
