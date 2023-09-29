@@ -89,7 +89,7 @@ export type TVerificationKey<K extends TVerificationKeyPrefix, N extends number>
 
 export interface IVerificationKeys {
     readonly methodSpecificId: TMethodSpecificId
-    readonly didUrl: `did:cheqd:${CheqdNetwork}:${IVerificationKeys['methodSpecificId']}` extends string ? string : never
+    readonly didUrl: `did:canow:${CheqdNetwork}:${IVerificationKeys['methodSpecificId']}` extends string ? string : never
     readonly keyId: `${IVerificationKeys['didUrl']}#${TVerificationKey<TVerificationKeyPrefix, number>}`
     readonly publicKey: string
 }
