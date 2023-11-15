@@ -467,7 +467,7 @@ export class DIDModule extends AbstractCheqdSDKModule {
 		const specCompliant = {
 			'@context': context,
 			id: protobufDidDocument.id,
-			controller: protobufDidDocument.controller,
+			controller: protobufDidDocument.controller.length === 1 ? protobufDidDocument.controller[0] : protobufDidDocument.controller,
 			verificationMethod: verificationMethod,
 			authentication: fromVerificationRelationships(context, protobufDidDocument.authentication),
 			assertionMethod: fromVerificationRelationships(context, protobufDidDocument.assertionMethod),
@@ -478,13 +478,15 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			alsoKnownAs: protobufDidDocument.alsoKnownAs,
 		} as DIDDocument
 
-		if (!protobufDidDocument.authentication?.length) delete specCompliant.authentication
-		if (!protobufDidDocument.assertionMethod?.length) delete specCompliant.assertionMethod
-		if (!protobufDidDocument.capabilityInvocation?.length) delete specCompliant.capabilityInvocation
-		if (!protobufDidDocument.capabilityDelegation?.length) delete specCompliant.capabilityDelegation
-		if (!protobufDidDocument.keyAgreement?.length) delete specCompliant.keyAgreement
-		if (!protobufDidDocument.service?.length) delete specCompliant.service
-		if (!protobufDidDocument.alsoKnownAs?.length) delete specCompliant.alsoKnownAs
+		if (!protobufDidDocument.controller.length) delete specCompliant.controller
+		if (!protobufDidDocument.verificationMethod.length) delete specCompliant.verificationMethod
+		if (!protobufDidDocument.authentication.length) delete specCompliant.authentication
+		if (!protobufDidDocument.assertionMethod.length) delete specCompliant.assertionMethod
+		if (!protobufDidDocument.capabilityInvocation.length) delete specCompliant.capabilityInvocation
+		if (!protobufDidDocument.capabilityDelegation.length) delete specCompliant.capabilityDelegation
+		if (!protobufDidDocument.keyAgreement.length) delete specCompliant.keyAgreement
+		if (!protobufDidDocument.service.length) delete specCompliant.service
+		if (!protobufDidDocument.alsoKnownAs.length) delete specCompliant.alsoKnownAs
 
 		return specCompliant
 	}

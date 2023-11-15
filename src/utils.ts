@@ -141,28 +141,29 @@ export function createVerificationKeys(publicKey: string, algo: MethodSpecificId
     }
 }
 
-export function createDidVerificationMethod(verificationMethodTypes: VerificationMethods[], verificationKeys: IVerificationKeys[]): VerificationMethod[] {
+export function createDidVerificationMethod(verificationMethodTypes: VerificationMethods[], verificationKeys: IVerificationKeys[], controller?: string): VerificationMethod[] {
     return verificationMethodTypes.map((type, _) => {
+        const methodController = controller ?? verificationKeys[_].didUrl
         switch (type) {
             case VerificationMethods.Ed255192020:
                 return {
                     id: verificationKeys[_].keyId,
                     type,
-                    controller: verificationKeys[_].didUrl,
+                    controller: methodController,
                     publicKeyMultibase: toMultibaseRaw(base64ToBytes(verificationKeys[_].publicKey))
                 } as VerificationMethod
             case VerificationMethods.Ed255192018:
                 return {
                     id: verificationKeys[_].keyId,
                     type,
-                    controller: verificationKeys[_].didUrl,
+                    controller: methodController,
                     publicKeyBase58: verificationKeys[_].methodSpecificId.slice(1)
                 } as VerificationMethod
             case VerificationMethods.JWK:
                 return {
                     id: verificationKeys[_].keyId,
                     type,
-                    controller: verificationKeys[_].didUrl,
+                    controller: methodController,
                     publicKeyJwk: {
                         crv: 'Ed25519',
                         kty: 'OKP',
@@ -173,7 +174,7 @@ export function createDidVerificationMethod(verificationMethodTypes: Verificatio
     }) ?? []
 }
 
-export function createDidPayload(verificationMethods: VerificationMethod[], verificationKeys: IVerificationKeys[]): DIDDocument {
+export function createDidPayload(verificationMethods: VerificationMethod[], verificationKeys: IVerificationKeys[], controller?: string): DIDDocument {
     if (!verificationMethods || verificationMethods.length === 0)
         throw new Error('No verification methods provided')
     if (!verificationKeys || verificationKeys.length === 0)
@@ -182,7 +183,7 @@ export function createDidPayload(verificationMethods: VerificationMethod[], veri
     const did = verificationKeys[0].didUrl
     return {
             id: did,
-            controller: verificationKeys.map(key => key.didUrl),
+            controller,
             verificationMethod: verificationMethods,
             authentication: verificationKeys.map(key => key.keyId)
     } as DIDDocument
