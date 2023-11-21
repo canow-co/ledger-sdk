@@ -181,9 +181,13 @@ export function createDidPayload(verificationMethods: VerificationMethod[], veri
         throw new Error('No verification keys provided')
 
     const did = verificationKeys[0].didUrl
+    
+    // TODO: We use an array of one string instead of just a string as a value for `controller` field of a specification-compliant DIDDocument
+    // until https://github.com/hyperledger/aries-framework-javascript/issues/1643 is fixed.
+    // After the specified issue is fixed, replace the controller field value in the statement below with just `controller`.
     return {
             id: did,
-            controller,
+            controller: controller !== undefined ? [controller] : undefined,
             verificationMethod: verificationMethods,
             authentication: verificationKeys.map(key => key.keyId)
     } as DIDDocument
