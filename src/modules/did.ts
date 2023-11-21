@@ -19,7 +19,7 @@ import {
 	VerificationMethods,
 	DIDDocumentWithMetadata
 } from '../types';
-import { 
+import {
 	MsgCreateDidDoc,
 	MsgCreateDidDocPayload,
 	MsgCreateDidDocResponse,
@@ -53,7 +53,7 @@ import {
 	contexts,
 	fromProtoVerificationMethod,
 	fromVerificationRelationships,
-    toVerificationRelationships
+	toVerificationRelationships
 } from "../utils"
 
 export const defaultDidExtensionKey = "did" as const
@@ -173,13 +173,13 @@ export const setupDidExtension = (base: QueryClient): DidExtension => {
 
 export class DIDModule extends AbstractCheqdSDKModule {
 	static readonly registryTypes: Iterable<[string, GeneratedType]> = [
-        [typeUrlMsgCreateDidDoc, MsgCreateDidDoc],
-        [typeUrlMsgCreateDidDocResponse, MsgCreateDidDocResponse],
-        [typeUrlMsgUpdateDidDoc, MsgUpdateDidDoc],
-        [typeUrlMsgUpdateDidDocResponse, MsgUpdateDidDocResponse],
+		[typeUrlMsgCreateDidDoc, MsgCreateDidDoc],
+		[typeUrlMsgCreateDidDocResponse, MsgCreateDidDocResponse],
+		[typeUrlMsgUpdateDidDoc, MsgUpdateDidDoc],
+		[typeUrlMsgUpdateDidDocResponse, MsgUpdateDidDocResponse],
 		[typeUrlMsgDeactivateDidDoc, MsgDeactivateDidDoc],
 		[typeUrlMsgDeactivateDidDocResponse, MsgDeactivateDidDocResponse],
-    ]
+	]
 
 	static readonly baseMinimalDenom = 'zarx' as const
 
@@ -206,9 +206,9 @@ export class DIDModule extends AbstractCheqdSDKModule {
 		}
 	}
 
-    public getRegistryTypes(): Iterable<[string, GeneratedType]> {
-        return DIDModule.registryTypes
-    }
+	public getRegistryTypes(): Iterable<[string, GeneratedType]> {
+		return DIDModule.registryTypes
+	}
 
 	public getQuerierExtensionSetup(): QueryExtensionSetup<DidExtension> {
 		return DIDModule.querierExtensionSetup
@@ -541,10 +541,14 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			throw new Error(`DID payload is not spec compliant: ${error}`)
 		}
 
+		const controller = Array.isArray(didPayload.controller)
+			? didPayload.controller
+			: (didPayload.controller !== undefined ? [didPayload.controller] : [])
+
 		return {
 			context: <string[]>didPayload?.['@context'],
 			id: didPayload.id,
-			controller: <string[]>didPayload.controller,
+			controller: controller,
 			verificationMethod: protobufVerificationMethod,
 			authentication: toVerificationRelationships(didPayload.authentication),
 			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
