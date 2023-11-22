@@ -445,13 +445,9 @@ export class DIDModule extends AbstractCheqdSDKModule {
 	}
 
 	static async toSpecCompliantPayload(protobufDidDocument: DidDoc): Promise<DIDDocument> {
-		// TODO: We use an array of one string instead of just a string as a value for `controller` field of a specification-compliant DIDDocument
-		// until https://github.com/hyperledger/aries-framework-javascript/issues/1643 is fixed.
-		// After the specified issue is fixed, replace this statement with the commented out statement below.
-		const controller = protobufDidDocument.controller.length > 0 ? protobufDidDocument.controller : undefined
-		// const controller = protobufDidDocument.controller.length > 1
-		// 	? protobufDidDocument.controller
-		// 	: protobufDidDocument.controller[0]
+		const controller = protobufDidDocument.controller.length > 1
+			? protobufDidDocument.controller
+			: protobufDidDocument.controller.at(0)
 
 		const verificationMethod = protobufDidDocument.verificationMethod.map(vm => {
 			return fromProtoVerificationMethod(protobufDidDocument.context, vm)
@@ -557,13 +553,13 @@ export class DIDModule extends AbstractCheqdSDKModule {
 			context: <string[]>didPayload?.['@context'],
 			id: didPayload.id,
 			controller: controller,
-			verificationMethod: protobufVerificationMethod,
+			verificationMethod: protobufVerificationMethod!,
 			authentication: toVerificationRelationships(didPayload.authentication),
 			assertionMethod: toVerificationRelationships(didPayload.assertionMethod),
 			capabilityInvocation: toVerificationRelationships(didPayload.capabilityInvocation),
 			capabilityDelegation: toVerificationRelationships(didPayload.capabilityDelegation),
 			keyAgreement: toVerificationRelationships(didPayload.keyAgreement),
-			service: protobufService,
+			service: protobufService ?? [],
 			alsoKnownAs: <string[]>didPayload.alsoKnownAs,
 			versionId: versionId
 		}
