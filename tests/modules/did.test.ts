@@ -30,6 +30,8 @@ import {
     DidExtension
 } from '../../src/modules/did';
 import { v4 } from "uuid"
+import { MsgCreateDidDocPayload, MsgDeactivateDidDocPayload, SignInfo } from "@canow-co/canow-proto/dist/cheqd/did/v2"
+import { base64ToBytes, hexToBytes } from "did-jwt"
 
 const defaultAsyncTxTimeout = 30000
 
@@ -554,6 +556,108 @@ describe('DIDModule', () => {
                 deactivateDidPayload,
                 feePayer,
                 feeDeactivate
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(deactivateDidPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(deactivateDidDocTx)}`)
+
+            expect(deactivateDidDocTx.code).toBe(0)
+        }, defaultAsyncTxTimeout)
+
+        it('should deactivate a DID by controller', async () => {
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic, {prefix: faucet.prefix})
+            const registry = createDefaultCheqdRegistry(DIDModule.registryTypes)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet, { registry })
+            const querier = await CheqdQuerier.connectWithExtension(localnet.rpcUrl, setupDidExtension) as CheqdQuerier & DidExtension
+            const didModule = new DIDModule(signer, querier)
+
+            const controllerKeyPair = createKeyPairBase64()
+            const controllerVerificationKeys = createVerificationKeys(controllerKeyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
+            const controllerVerificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [controllerVerificationKeys])
+            const controllerDidPayload = createDidPayload(controllerVerificationMethods, [controllerVerificationKeys])
+            const controllerSignInputs: ISignInputs[] = [
+                {
+                    verificationMethodId: controllerDidPayload.verificationMethod![0].id,
+                    privateKeyHex: toString(fromString(controllerKeyPair.privateKey, 'base64'), 'hex')
+                }
+            ]
+            const feePayer = (await wallet.getAccounts())[0].address
+            const fee = await DIDModule.generateCreateDidDocFees(feePayer) 
+            const controllerDidTx: DeliverTxResponse = await didModule.createDidDocTx(
+                controllerSignInputs,
+                controllerDidPayload,
+                feePayer,
+                fee
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(controllerDidPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(controllerDidTx)}`)
+
+            expect(controllerDidTx.code).toBe(0)
+
+            const keyPair = createKeyPairBase64()
+            const verificationKeys = createVerificationKeys(keyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
+            const verificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [verificationKeys], controllerDidPayload.id)
+            const didPayload = createDidPayload(verificationMethods, [verificationKeys], controllerDidPayload.id)
+            const signInputs: ISignInputs[] = [
+                {
+                    verificationMethodId: controllerDidPayload.verificationMethod![0].id,
+                    privateKeyHex: toString(fromString(controllerKeyPair.privateKey, 'base64'), 'hex')
+                }
+            ]
+            const controllerVersionId = v4()
+            const controllerDidDocument = await DIDModule.toProtoDidDocument(controllerDidPayload, controllerVersionId)
+            await signer.checkDidSigners(controllerDidDocument.verificationMethod)
+            const createVersionId = v4()
+            const txPayload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, createVersionId))
+            const signBytes = MsgCreateDidDocPayload.encode(txPayload).finish()
+            const signInfos: SignInfo[] = await Promise.all(signInputs.map(async (signInput) => {
+                return {
+                    verificationMethodId: signInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(signInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(signInput.privateKeyHex))(signBytes)) as string)
+                }
+            }))
+            const didTx: DeliverTxResponse = await didModule.createDidDocTx(
+                signInfos,
+                didPayload,
+                feePayer,
+                fee,
+                undefined,
+                createVersionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(didPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(didTx)}`)
+
+            expect(didTx.code).toBe(0)
+
+            // deactivate the did document
+            const deactivateDidPayload = {
+                id: didPayload.id,
+                verificationMethod: [] // an array value is needed to satisfy validation in deactivateDidDocTx
+            } as DIDDocument
+            const deactivateVersionId = v4()
+            const deactivateTxPayload = MsgDeactivateDidDocPayload.fromPartial({
+                id: deactivateDidPayload.id,
+                versionId: deactivateVersionId
+            })
+            const deactivateSignBytes = MsgDeactivateDidDocPayload.encode(deactivateTxPayload).finish()
+            const deactivateSignInfos: SignInfo[] = await Promise.all(signInputs.map(async (signInput) => {
+                return {
+                    verificationMethodId: signInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(signInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(signInput.privateKeyHex))(deactivateSignBytes)) as string)
+                }
+            }))
+
+            const feeDeactivate = await DIDModule.generateDeactivateDidDocFees(feePayer)
+
+            const deactivateDidDocTx: DeliverTxResponse = await didModule.deactivateDidDocTx(
+                deactivateSignInfos,
+                deactivateDidPayload,
+                feePayer,
+                feeDeactivate,
+                undefined,
+                deactivateVersionId
             )
 
             console.warn(`Using payload: ${JSON.stringify(deactivateDidPayload)}`)
