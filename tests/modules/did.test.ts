@@ -1,10 +1,17 @@
+import { MsgCreateDidDocPayload, MsgDeactivateDidDocPayload, MsgUpdateDidDocPayload, SignInfo } from "@canow-co/canow-proto/dist/cheqd/did/v2"
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing"
 import { DeliverTxResponse } from "@cosmjs/stargate"
+import { base64ToBytes, hexToBytes } from "did-jwt"
 import {
     fromString,
     toString
 } from 'uint8arrays'
+import { v4 } from "uuid"
 import { DIDModule } from "../../src"
+import {
+    DidExtension, setupDidExtension
+} from '../../src/modules/did'
+import { CheqdQuerier } from '../../src/querier'
 import { createDefaultCheqdRegistry } from "../../src/registry"
 import { CheqdSigningStargateClient } from "../../src/signer"
 import {
@@ -20,18 +27,8 @@ import {
     createVerificationKeys
 } from "../../src/utils"
 import {
-    localnet,
-    faucet,
-    containsAll
+    containsAll, faucet, localnet
 } from "../testutils.test"
-import { CheqdQuerier } from '../../src/querier';
-import {
-    setupDidExtension,
-    DidExtension
-} from '../../src/modules/did';
-import { v4 } from "uuid"
-import { MsgCreateDidDocPayload, MsgDeactivateDidDocPayload, SignInfo } from "@canow-co/canow-proto/dist/cheqd/did/v2"
-import { base64ToBytes, hexToBytes } from "did-jwt"
 
 const defaultAsyncTxTimeout = 30000
 
@@ -236,6 +233,75 @@ describe('DIDModule', () => {
 
             expect(didTx.code).toBe(0)
         }, defaultAsyncTxTimeout)
+
+        it('should create a new DID by controller', async () => {
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic, {prefix: faucet.prefix})
+            const registry = createDefaultCheqdRegistry(DIDModule.registryTypes)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet, { registry })
+            const querier = await CheqdQuerier.connectWithExtension(localnet.rpcUrl, setupDidExtension) as CheqdQuerier & DidExtension
+            const didModule = new DIDModule(signer, querier)
+
+            // create the controller's did document
+            const controllerKeyPair = createKeyPairBase64()
+            const controllerVerificationKeys = createVerificationKeys(controllerKeyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
+            const controllerVerificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [controllerVerificationKeys])
+            const controllerVersionId = v4()
+            const controllerDidPayload = createDidPayload(controllerVerificationMethods, [controllerVerificationKeys])
+            const controllerSignInputs: ISignInputs[] = [
+                {
+                    verificationMethodId: controllerDidPayload.verificationMethod![0].id,
+                    privateKeyHex: toString(fromString(controllerKeyPair.privateKey, 'base64'), 'hex')
+                }
+            ]
+            const feePayer = (await wallet.getAccounts())[0].address
+            const fee = await DIDModule.generateCreateDidDocFees(feePayer) 
+            const controllerDidTx: DeliverTxResponse = await didModule.createDidDocTx(
+                controllerSignInputs,
+                controllerDidPayload,
+                feePayer,
+                fee,
+                undefined,
+                controllerVersionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(controllerDidPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(controllerDidTx)}`)
+
+            expect(controllerDidTx.code).toBe(0)
+
+            // create a did document by controller
+            const keyPair = createKeyPairBase64()
+            const verificationKeys = createVerificationKeys(keyPair.publicKey, MethodSpecificIdAlgo.Uuid, 'key-1')
+            const verificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [verificationKeys], controllerDidPayload.id)
+            const didPayload = createDidPayload(verificationMethods, [verificationKeys], controllerDidPayload.id)
+            const versionId = v4()
+            const txPayload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
+            const signBytes = MsgCreateDidDocPayload.encode(txPayload).finish()
+
+            const controllerDidDocument = await DIDModule.toProtoDidDocument(controllerDidPayload, controllerVersionId)
+            await signer.checkDidSigners(controllerDidDocument.verificationMethod)
+
+            const signInfos: SignInfo[] = await Promise.all(controllerSignInputs.map(async (controllerSignInput) => {
+                return {
+                    verificationMethodId: controllerSignInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(controllerSignInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(controllerSignInput.privateKeyHex))(signBytes)) as string)
+                }
+            }))
+
+            const didTx: DeliverTxResponse = await didModule.createDidDocTx(
+                signInfos,
+                didPayload,
+                feePayer,
+                fee,
+                undefined,
+                versionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(didPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(didTx)}`)
+
+            expect(didTx.code).toBe(0)
+        }, defaultAsyncTxTimeout)
     })
 
     describe('updateDidDocTx', () => {
@@ -398,6 +464,110 @@ describe('DIDModule', () => {
                 updateDidPayload,
                 feePayer,
                 feeUpdate
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(updateDidPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(updateDidDocTx)}`)
+
+            expect(updateDidDocTx.code).toBe(0)
+        }, defaultAsyncTxTimeout)
+
+        it('should update a DID by controller', async () => {
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic, {prefix: faucet.prefix})
+            const registry = createDefaultCheqdRegistry(DIDModule.registryTypes)
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet, { registry })
+            const querier = await CheqdQuerier.connectWithExtension(localnet.rpcUrl, setupDidExtension) as CheqdQuerier & DidExtension
+            const didModule = new DIDModule(signer, querier)
+
+            // create the controller's did document
+            const controllerKeyPair = createKeyPairBase64()
+            const controllerVerificationKeys = createVerificationKeys(controllerKeyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
+            const controllerVerificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [controllerVerificationKeys])
+            const controllerVersionId = v4()
+            const controllerDidPayload = createDidPayload(controllerVerificationMethods, [controllerVerificationKeys])
+            const controllerSignInputs: ISignInputs[] = [
+                {
+                    verificationMethodId: controllerDidPayload.verificationMethod![0].id,
+                    privateKeyHex: toString(fromString(controllerKeyPair.privateKey, 'base64'), 'hex')
+                }
+            ]
+            const feePayer = (await wallet.getAccounts())[0].address
+            const fee = await DIDModule.generateCreateDidDocFees(feePayer) 
+            const controllerDidTx: DeliverTxResponse = await didModule.createDidDocTx(
+                controllerSignInputs,
+                controllerDidPayload,
+                feePayer,
+                fee,
+                undefined,
+                controllerVersionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(controllerDidPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(controllerDidTx)}`)
+
+            expect(controllerDidTx.code).toBe(0)
+
+            // create a did document by controller
+            const keyPair = createKeyPairBase64()
+            const verificationKeys = createVerificationKeys(keyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
+            const verificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [verificationKeys], controllerDidPayload.id)
+            const didPayload = createDidPayload(verificationMethods, [verificationKeys], controllerDidPayload.id)
+            const versionId = v4()
+            const txPayload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
+            const signBytes = MsgCreateDidDocPayload.encode(txPayload).finish()
+
+            const controllerDidDocument = await DIDModule.toProtoDidDocument(controllerDidPayload, controllerVersionId)
+            await signer.checkDidSigners(controllerDidDocument.verificationMethod)
+
+            const signInfos: SignInfo[] = await Promise.all(controllerSignInputs.map(async (controllerSignInput) => {
+                return {
+                    verificationMethodId: controllerSignInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(controllerSignInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(controllerSignInput.privateKeyHex))(signBytes)) as string)
+                }
+            }))
+            const didTx: DeliverTxResponse = await didModule.createDidDocTx(
+                signInfos,
+                didPayload,
+                feePayer,
+                fee,
+                undefined,
+                versionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(didPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(didTx)}`)
+
+            expect(didTx.code).toBe(0)
+
+            // update the did document by controller
+            const updateDidPayload = {
+                '@context': didPayload?.['@context'],
+                id: didPayload.id,
+                controller: didPayload.controller,
+                verificationMethod: didPayload.verificationMethod,
+                authentication: didPayload.authentication,
+                assertionMethod: [didPayload.verificationMethod![0].id], // <-- This is the only difference
+            } as DIDDocument
+
+            const updateVersionId = v4()
+            const updateTxPayload = MsgUpdateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(updateDidPayload, updateVersionId))
+            const updateSignBytes = MsgUpdateDidDocPayload.encode(updateTxPayload).finish()
+            const updateSignInfos: SignInfo[] = await Promise.all(controllerSignInputs.map(async (controllerSignInput) => {
+                return {
+                    verificationMethodId: controllerSignInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(controllerSignInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(controllerSignInput.privateKeyHex))(updateSignBytes)) as string)
+                }
+            }))
+
+            const feeUpdate = await DIDModule.generateUpdateDidDocFees(feePayer)
+
+            const updateDidDocTx: DeliverTxResponse = await didModule.updateDidDocTx(
+                updateSignInfos,
+                updateDidPayload,
+                feePayer,
+                feeUpdate,
+                undefined,
+                updateVersionId
             )
 
             console.warn(`Using payload: ${JSON.stringify(updateDidPayload)}`)
@@ -571,9 +741,11 @@ describe('DIDModule', () => {
             const querier = await CheqdQuerier.connectWithExtension(localnet.rpcUrl, setupDidExtension) as CheqdQuerier & DidExtension
             const didModule = new DIDModule(signer, querier)
 
+            // create the controller's did document
             const controllerKeyPair = createKeyPairBase64()
             const controllerVerificationKeys = createVerificationKeys(controllerKeyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
             const controllerVerificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [controllerVerificationKeys])
+            const controllerVersionId = v4()
             const controllerDidPayload = createDidPayload(controllerVerificationMethods, [controllerVerificationKeys])
             const controllerSignInputs: ISignInputs[] = [
                 {
@@ -587,7 +759,9 @@ describe('DIDModule', () => {
                 controllerSignInputs,
                 controllerDidPayload,
                 feePayer,
-                fee
+                fee,
+                undefined,
+                controllerVersionId
             )
 
             console.warn(`Using payload: ${JSON.stringify(controllerDidPayload)}`)
@@ -595,35 +769,32 @@ describe('DIDModule', () => {
 
             expect(controllerDidTx.code).toBe(0)
 
+            // create a did document by controller
             const keyPair = createKeyPairBase64()
             const verificationKeys = createVerificationKeys(keyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
             const verificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [verificationKeys], controllerDidPayload.id)
             const didPayload = createDidPayload(verificationMethods, [verificationKeys], controllerDidPayload.id)
-            const signInputs: ISignInputs[] = [
-                {
-                    verificationMethodId: controllerDidPayload.verificationMethod![0].id,
-                    privateKeyHex: toString(fromString(controllerKeyPair.privateKey, 'base64'), 'hex')
-                }
-            ]
-            const controllerVersionId = v4()
+            const versionId = v4()
+            const txPayload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
+            const signBytes = MsgCreateDidDocPayload.encode(txPayload).finish()
+
             const controllerDidDocument = await DIDModule.toProtoDidDocument(controllerDidPayload, controllerVersionId)
             await signer.checkDidSigners(controllerDidDocument.verificationMethod)
-            const createVersionId = v4()
-            const txPayload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, createVersionId))
-            const signBytes = MsgCreateDidDocPayload.encode(txPayload).finish()
-            const signInfos: SignInfo[] = await Promise.all(signInputs.map(async (signInput) => {
+
+            const signInfos: SignInfo[] = await Promise.all(controllerSignInputs.map(async (controllerSignInput) => {
                 return {
-                    verificationMethodId: signInput.verificationMethodId,
-                    signature: base64ToBytes((await (await signer.getDidSigner(signInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(signInput.privateKeyHex))(signBytes)) as string)
+                    verificationMethodId: controllerSignInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(controllerSignInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(controllerSignInput.privateKeyHex))(signBytes)) as string)
                 }
             }))
+
             const didTx: DeliverTxResponse = await didModule.createDidDocTx(
                 signInfos,
                 didPayload,
                 feePayer,
                 fee,
                 undefined,
-                createVersionId
+                versionId
             )
 
             console.warn(`Using payload: ${JSON.stringify(didPayload)}`)
@@ -631,21 +802,22 @@ describe('DIDModule', () => {
 
             expect(didTx.code).toBe(0)
 
-            // deactivate the did document
+            // deactivate the did document by controller
             const deactivateDidPayload = {
                 id: didPayload.id,
                 verificationMethod: [] // an array value is needed to satisfy validation in deactivateDidDocTx
             } as DIDDocument
+
             const deactivateVersionId = v4()
             const deactivateTxPayload = MsgDeactivateDidDocPayload.fromPartial({
                 id: deactivateDidPayload.id,
                 versionId: deactivateVersionId
             })
             const deactivateSignBytes = MsgDeactivateDidDocPayload.encode(deactivateTxPayload).finish()
-            const deactivateSignInfos: SignInfo[] = await Promise.all(signInputs.map(async (signInput) => {
+            const deactivateSignInfos: SignInfo[] = await Promise.all(controllerSignInputs.map(async (controllerSignInput) => {
                 return {
-                    verificationMethodId: signInput.verificationMethodId,
-                    signature: base64ToBytes((await (await signer.getDidSigner(signInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(signInput.privateKeyHex))(deactivateSignBytes)) as string)
+                    verificationMethodId: controllerSignInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(controllerSignInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(controllerSignInput.privateKeyHex))(deactivateSignBytes)) as string)
                 }
             }))
 

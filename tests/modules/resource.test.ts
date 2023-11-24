@@ -1,22 +1,38 @@
+import { MsgCreateDidDocPayload, SignInfo } from "@canow-co/canow-proto/dist/cheqd/did/v2"
+import {
+    AlternativeUri,
+    Metadata,
+    MsgCreateResourcePayload
+} from '@canow-co/canow-proto/dist/cheqd/resource/v2'
+import { sha256 } from "@cosmjs/crypto"
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing"
 import { DeliverTxResponse } from "@cosmjs/stargate"
+import { base64ToBytes, hexToBytes } from "did-jwt"
 import {
     fromString,
     toString
 } from 'uint8arrays'
+import { v4 } from "uuid"
 import {
     DIDModule,
     ResourceModule
 } from "../../src"
+import {
+    DidExtension,
+    setupDidExtension
+} from "../../src/modules/did"
+import {
+    ResourceExtension, setupResourceExtension
+} from '../../src/modules/resource'
+import { CheqdQuerier } from "../../src/querier"
 import { createDefaultCheqdRegistry } from "../../src/registry"
 import { CheqdSigningStargateClient } from "../../src/signer"
 import {
-    ISignInputs,
+    CheqdExtensions, ISignInputs,
     MethodSpecificIdAlgo,
     QueryExtensionSetup,
-    VerificationMethods,
-    CheqdExtensions
-} from '../../src/types';
+    VerificationMethods
+} from '../../src/types'
 import {
     createDidPayload,
     createDidVerificationMethod,
@@ -24,29 +40,9 @@ import {
     createVerificationKeys
 } from "../../src/utils"
 import {
-    localnet,
-    faucet,
-    image_content,
-    default_content,
-    json_content,
-    containsAllButOmittedFields
-} from '../testutils.test';
-import {
-    AlternativeUri,
-    Metadata,
-    MsgCreateResourcePayload
-} from '@canow-co/canow-proto/dist/cheqd/resource/v2';
-import { v4 } from "uuid"
-import { CheqdQuerier } from "../../src/querier"
-import {
-    setupResourceExtension,
-    ResourceExtension
-} from '../../src/modules/resource';
-import {
-    DidExtension,
-    setupDidExtension
-} from "../../src/modules/did"
-import { sha256 } from "@cosmjs/crypto"
+    containsAllButOmittedFields, default_content, faucet,
+    image_content, json_content, localnet
+} from '../testutils.test'
 
 const defaultAsyncTxTimeout = 30000
 
@@ -261,6 +257,109 @@ describe('ResourceModule', () => {
                 resourcePayload,
                 feePayer,
                 feeResourceDefault
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(resourcePayload)}`)
+            console.warn(`Resource Tx: ${JSON.stringify(resourceTx)}`)
+
+            expect(resourceTx.code).toBe(0)
+        }, defaultAsyncTxTimeout)
+
+        it('should create a new Resource - case: DID document contains controller', async () => {
+            const wallet = await DirectSecp256k1HdWallet.fromMnemonic(faucet.mnemonic, {prefix: faucet.prefix})
+            const registry = createDefaultCheqdRegistry(Array.from(DIDModule.registryTypes).concat(Array.from(ResourceModule.registryTypes)))
+            const signer = await CheqdSigningStargateClient.connectWithSigner(localnet.rpcUrl, wallet, { registry })
+            const querier = await CheqdQuerier.connectWithExtensions(localnet.rpcUrl, ...[setupDidExtension, setupResourceExtension] as unknown as QueryExtensionSetup<CheqdExtensions>[])
+            const didModule = new DIDModule(signer, querier as CheqdQuerier & DidExtension)
+
+            // create the controller's did document
+            const controllerKeyPair = createKeyPairBase64()
+            const controllerVerificationKeys = createVerificationKeys(controllerKeyPair.publicKey, MethodSpecificIdAlgo.Base58, 'key-1')
+            const controllerVerificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [controllerVerificationKeys])
+            const controllerDidPayload = createDidPayload(controllerVerificationMethods, [controllerVerificationKeys])
+            const controllerVersionId = v4()
+            const controllerSignInputs: ISignInputs[] = [
+                {
+                    verificationMethodId: controllerDidPayload.verificationMethod![0].id,
+                    privateKeyHex: toString(fromString(controllerKeyPair.privateKey, 'base64'), 'hex')
+                }
+            ]
+            const feePayer = (await wallet.getAccounts())[0].address
+            const fee = await DIDModule.generateCreateDidDocFees(feePayer) 
+            const controllerDidTx: DeliverTxResponse = await didModule.createDidDocTx(
+                controllerSignInputs,
+                controllerDidPayload,
+                feePayer,
+                fee,
+                undefined,
+                controllerVersionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(controllerDidPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(controllerDidTx)}`)
+
+            expect(controllerDidTx.code).toBe(0)
+
+            // create the resource creator's did document
+            const keyPair = createKeyPairBase64()
+            const verificationKeys = createVerificationKeys(keyPair.publicKey, MethodSpecificIdAlgo.Uuid, 'key-1')
+            const verificationMethods = createDidVerificationMethod([VerificationMethods.Ed255192020], [verificationKeys], controllerDidPayload.id)
+            const didPayload = createDidPayload(verificationMethods, [verificationKeys], controllerDidPayload.id)
+            const versionId = v4()
+            const txPayload = MsgCreateDidDocPayload.fromPartial(await DIDModule.toProtoDidDocument(didPayload, versionId))
+            const signBytes = MsgCreateDidDocPayload.encode(txPayload).finish()
+
+            const controllerDidDocument = await DIDModule.toProtoDidDocument(controllerDidPayload, controllerVersionId)
+            await signer.checkDidSigners(controllerDidDocument.verificationMethod)
+
+            const signInfos: SignInfo[] = await Promise.all(controllerSignInputs.map(async (controllerSignInput) => {
+                return {
+                    verificationMethodId: controllerSignInput.verificationMethodId,
+                    signature: base64ToBytes((await (await signer.getDidSigner(controllerSignInput.verificationMethodId, controllerDidDocument.verificationMethod))(hexToBytes(controllerSignInput.privateKeyHex))(signBytes)) as string)
+                }
+            }))
+
+            const didTx: DeliverTxResponse = await didModule.createDidDocTx(
+                signInfos,
+                didPayload,
+                feePayer,
+                fee,
+                undefined,
+                versionId
+            )
+
+            console.warn(`Using payload: ${JSON.stringify(didPayload)}`)
+            console.warn(`DID Tx: ${JSON.stringify(didTx)}`)
+
+            expect(didTx.code).toBe(0)
+
+            // create a did linked resource
+            const resourceModule = new ResourceModule(signer, querier as CheqdQuerier & ResourceExtension)
+
+            const resourcePayload: MsgCreateResourcePayload = {
+                collectionId: didPayload.id.split(":").reverse()[0],
+                id: v4(),
+                version: "1.0",
+                alsoKnownAs: [],
+                name: 'Test Resource',
+                resourceType: 'test-resource-type',
+                data: new TextEncoder().encode(json_content)
+            }
+
+            const resourceSignInputs: ISignInputs[] = [
+                {
+                    verificationMethodId: didPayload.verificationMethod![0].id,
+                    keyType: 'Ed25519',
+                    privateKeyHex: toString(fromString(keyPair.privateKey, 'base64'), 'hex')
+                }
+            ]
+
+            const feeResourceJson = await ResourceModule.generateCreateResourceJsonFees(feePayer)
+            const resourceTx = await resourceModule.createLinkedResourceTx(
+                resourceSignInputs,
+                resourcePayload,
+                feePayer,
+                feeResourceJson
             )
 
             console.warn(`Using payload: ${JSON.stringify(resourcePayload)}`)
