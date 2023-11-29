@@ -31,7 +31,7 @@ import {
     VerificationMethod as ProtoVerificationMethod,
     Service as ProtoService,
     VerificationRelationship,
-} from "@canow-co/canow-proto/dist/cheqd/did/v2/index"
+} from "@canow-co/canow-proto/dist/cheqd/did/v2"
 
 export type TImportableEd25519Key = {
     publicKeyHex: string
