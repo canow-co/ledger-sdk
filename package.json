@@ -20,8 +20,8 @@
     }
   },
   "scripts": {
-    "test": "jest --colors --passWithNoTests --maxWorkers 1 --maxConcurrency 1",
-    "test:watch": "jest --colors --passWithNoTests --maxWorkers 1 --maxConcurrency 1 --watch",
+    "test": "jest --maxWorkers 1 --maxConcurrency 1",
+    "test:watch": "jest --maxWorkers 1 --maxConcurrency 1 --watch",
     "build": "rm -rf build && npm run build:types && npm run build:cjs",
     "build:types": "tsc -p tsconfig.types.json",
     "build:cjs": "tsc -p tsconfig.cjs.json"
