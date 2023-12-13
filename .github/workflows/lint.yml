@@ -34,7 +34,7 @@ jobs:
       uses: github/super-linter/slim@v4
       env:
         IGNORE_GITIGNORED_FILES: true
-        DEFAULT_BRANCH: main
+        DEFAULT_BRANCH: DDS-514-add-ci
         LINTER_RULES_PATH: '.github/linters'
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         LOG_LEVEL: WARN
