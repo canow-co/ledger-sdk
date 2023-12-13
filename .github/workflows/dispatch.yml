@@ -27,7 +27,7 @@ jobs:
   call-check-version:
     name: "Check Version"
     needs: call-tests
-    if: ${{ github.ref_type == 'branch' && github.ref_name == 'DDS-514-add-ci' }}
+    if: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
     uses: ./.github/workflows/check-version.yml
     secrets: inherit
 

@@ -2,7 +2,7 @@ name: "PR Title Check"
 on:
   pull_request_target:
     branches:
-      - DDS-514-add-ci
+      - main
       - develop
     types:
       - opened

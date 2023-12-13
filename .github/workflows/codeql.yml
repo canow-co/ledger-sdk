@@ -2,7 +2,7 @@ name: "CodeQL"
 on:
   push:
     branches:
-      - DDS-514-add-ci
+      - main
       - develop
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
