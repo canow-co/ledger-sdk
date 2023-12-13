@@ -1,0 +1,31 @@
+name: "Check Version"
+on:
+  workflow_call:
+    outputs:
+      changed:
+        description: 'Either "true" or "false", indicates whether the version has changed'
+        value: ${{ jobs.check-if-version-changed.outputs.changed }}
+      version:
+        description: 'New version if the version has changed'
+        value: ${{ jobs.check-if-version-changed.outputs.version }}
+defaults:
+  run:
+    shell: bash
+
+
+jobs:
+  check-if-version-changed:
+    name: Check if new version
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version-check.outputs.changed }}
+      version: ${{ steps.version-check.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: EndBug/version-check@v2
+        id: version-check
+        with:
+          diff-search: true
+          assume-same-version: new

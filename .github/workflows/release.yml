@@ -1,42 +1,60 @@
 name: "Release"
 on:
   workflow_call:
+    inputs:
+      version:
+        description: 'Version to release'
+        required: true
+        type: string
 defaults:
   run:
     shell: bash
 
 jobs:
-  release:
-    name: "Semantic Release"
+  release-npm:
+    name: Release npm package
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18.17 # pinned to avoid https://github.com/npm/cli/issues/6842
+          cache: 'npm'
+          registry-url: https://npm.pkg.github.com/
+
+      - name: Clean install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.ORG_GITHUB_TOKEN }}
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Create GitHub release
+    needs: release-npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-          persist-credentials: false
-      
-      - uses: actions/setup-node@v3
+          fetch-depth: 0 # to fetch all history
+
+      - uses: softprops/action-gh-release@v1
         with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
-      
-      - name: "Obtain Github App token"
-        id: app-token
-        uses: getsentry/action-github-app-token@v2.0.0
-        with:
-          app_id: ${{ secrets.BOT_APP_ID }}
-          private_key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-
-      - name: "Clean install dependencies"
-        run: npm ci
-
-      - name: "Run npm build"
-        run: npm run build
-
-      - name: "Execute Semantic Release"
-        run: npx semantic-release
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          prerelease: true
+          tag_name: ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
