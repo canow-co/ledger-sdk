@@ -22,7 +22,7 @@ jobs:
       version: ${{ steps.version-check.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: EndBug/version-check@v2
         id: version-check
