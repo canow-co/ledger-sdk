@@ -3,4 +3,6 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   modulePathIgnorePatterns: ["tests/testutils.test.ts"],
+  testTimeout: 1200000,
+  verbose: true,
 };

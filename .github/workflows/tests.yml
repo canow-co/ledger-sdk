@@ -1,0 +1,66 @@
+name: "Tests"
+on:
+  workflow_call:
+defaults:
+  run:
+    shell: bash
+env:
+  CHEQD_NODE_VERSION: 1.4.4-canow2 # canow-co/cheqd-node version without leading "v"
+
+
+jobs:
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18.17 # pinned to avoid https://github.com/npm/cli/issues/6842
+          cache: 'npm'
+          registry-url: https://npm.pkg.github.com/
+
+      - name: Clean install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.ORG_GITHUB_TOKEN }}
+
+      - name: Check out canow-co/cheqd-node docker compose
+        uses: actions/checkout@v4
+        with:
+          repository: canow-co/cheqd-node
+          ref: v${{ env.CHEQD_NODE_VERSION }}
+          path: cheqd-node
+          sparse-checkout: docker/localnet
+
+      - name: Download canow-co/cheqd-node binary to perform localnet setup
+        run: |
+          wget https://github.com/canow-co/cheqd-node/releases/download/v${{ env.CHEQD_NODE_VERSION }}/cheqd-node-v${{ env.CHEQD_NODE_VERSION }}-linux.tar.gz
+          tar -xf cheqd-node-v${{ env.CHEQD_NODE_VERSION }}-linux.tar.gz
+          mkdir -p "$HOME"/.local/bin
+          cp cheqd-noded "$HOME"/.local/bin/
+          chmod +x "$HOME"/.local/bin/cheqd-noded
+        working-directory: ./cheqd-node
+
+      - name: Generate canow-co/cheqd-node localnet configs
+        run: |
+          bash gen-network-config.sh
+          sudo chown -R 1000:1000 network-config
+        working-directory: ./cheqd-node/docker/localnet
+
+      - name: Start canow-co/cheqd-node localnet
+        # TODO: Replace sleep below with waiting for localnet catch-up completion
+        run: |
+          docker compose up -d
+          sleep 20
+        working-directory: ./cheqd-node/docker/localnet
+        env:
+          BUILD_IMAGE: ghcr.io/canow-co/cheqd-node:${{ env.CHEQD_NODE_VERSION }}
+
+      - name: Run tests
+        run: npm run test -- --ci --reporters=default --reporters=github-actions
+        env:
+          FORCE_COLOR: 1
